@@ -1,0 +1,12 @@
+[package]
+name = "writecolor"
+version = "0.1.0"
+authors = ["Nick Murphy <comfortablynick@gmail.com>"]
+description = "A simple library for writing colored text to io::Write interfaces."
+edition = "2018"
+
+[lib]
+name = "writecolor"
+bench = false
+
+# [dependencies]
