@@ -17,11 +17,11 @@ build:
 
 # rebuild docs
 doc:
-    cargo makedocs -d --root
+    cargo doc
 
 # rebuild docs and start simple static server
 docs +PORT='40000':
-    cargo makedocs -d --root && http target/doc -p {{PORT}}
+    cargo doc && http target/doc -p {{PORT}}
 
 # start server for docs and update upon changes
 docslive:
@@ -29,7 +29,7 @@ docslive:
 
 # rebuild docs and start simple static server that watches for changes (in parallel)
 docw +PORT='40000':
-    parallel --lb ::: "cargo watch -x 'makedocs -d --root'" "http target/doc -p {{PORT}}"
+    parallel --lb ::: "cargo watch -x doc" "http target/doc -p {{PORT}}"
 
 fix:
     cargo fix
