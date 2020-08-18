@@ -45,11 +45,101 @@ pub enum Color {
     /// Make the text bright black
     Black,
     /// Provide ANSI 256 color value
-    Ansi256(u8),
+    Fixed(u8),
     /// Provide a 256 color table text color value
     Rgb(u8, u8, u8),
     #[doc(hidden)]
     __Nonexhaustive,
+}
+
+impl Color {
+    /// Returns a `Style` with foreground color set to this color.
+    /// Equivalent to passing color to `Style::from`.
+    pub fn normal(self) -> Style {
+        Style {
+            fg: Some(self),
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the foreground color set to this color and the
+    /// bold property set.
+    pub fn bold(self) -> Style {
+        Style {
+            fg: Some(self),
+            bold: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the fg color set to this color and the
+    /// dimmed property set.
+    pub fn dimmed(self) -> Style {
+        Style {
+            fg: Some(self),
+            dimmed: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the fg color set to this color and the
+    /// italic property set.
+    pub fn italic(self) -> Style {
+        Style {
+            fg: Some(self),
+            italic: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the fg color set to this color and the
+    /// underline property set.
+    pub fn underline(self) -> Style {
+        Style {
+            fg: Some(self),
+            underline: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the fg color set to this color and the
+    /// blink property set.
+    pub fn blink(self) -> Style {
+        Style {
+            fg: Some(self),
+            blink: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the fg color set to this color and the
+    /// strikethrough property set.
+    pub fn strikethrough(self) -> Style {
+        Style {
+            fg: Some(self),
+            strikethrough: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the intense property set.
+    pub fn intense(self) -> Style {
+        Style {
+            fg: Some(self),
+            intense: true,
+            ..Style::default()
+        }
+    }
+
+    /// Returns a `Style` with the foreground set to this color and the
+    /// background color set to the given color.
+    pub fn on(self, bg: Self) -> Style {
+        Style {
+            fg: Some(self),
+            bg: Some(bg),
+            ..Style::default()
+        }
+    }
 }
 
 /// Elements that can be added to define a complete `Style`
@@ -78,12 +168,17 @@ pub enum StyleSpec {
 /// Defines all aspecs of console text styling
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq)]
 pub struct Style {
-    fg:        Option<Color>,
-    bg:        Option<Color>,
-    bold:      bool,
-    italic:    bool,
-    underline: bool,
-    intense:   bool,
+    fg:            Option<Color>,
+    bg:            Option<Color>,
+    bold:          bool,
+    dimmed:        bool,
+    italic:        bool,
+    underline:     bool,
+    blink:         bool,
+    reverse:       bool,
+    hidden:        bool,
+    strikethrough: bool,
+    intense:       bool,
 }
 
 impl Add for Style {
@@ -91,12 +186,17 @@ impl Add for Style {
 
     fn add(self, with: Self) -> Self {
         Self {
-            fg:        with.fg.or(self.fg),
-            bg:        with.bg.or(self.bg),
-            bold:      with.bold || self.bold,
-            italic:    with.italic || self.italic,
-            underline: with.underline || self.underline,
-            intense:   with.intense || self.intense,
+            fg:            with.fg.or(self.fg),
+            bg:            with.bg.or(self.bg),
+            bold:          with.bold || self.bold,
+            dimmed:        with.dimmed || self.dimmed,
+            italic:        with.italic || self.italic,
+            underline:     with.underline || self.underline,
+            blink:         with.blink || self.blink,
+            reverse:       with.reverse || self.reverse,
+            hidden:        with.hidden || self.hidden,
+            strikethrough: with.strikethrough || self.strikethrough,
+            intense:       with.intense || self.intense,
         }
     }
 }
@@ -107,12 +207,17 @@ impl AddAssign for Style {
             return *self = Default::default();
         }
         *self = Self {
-            fg:        with.fg.or(self.fg),
-            bg:        with.bg.or(self.bg),
-            bold:      with.bold || self.bold,
-            italic:    with.italic || self.italic,
-            underline: with.underline || self.underline,
-            intense:   with.intense || self.intense,
+            fg:            with.fg.or(self.fg),
+            bg:            with.bg.or(self.bg),
+            bold:          with.bold || self.bold,
+            dimmed:        with.dimmed || self.dimmed,
+            italic:        with.italic || self.italic,
+            underline:     with.underline || self.underline,
+            blink:         with.blink || self.blink,
+            reverse:       with.reverse || self.reverse,
+            hidden:        with.hidden || self.hidden,
+            strikethrough: with.strikethrough || self.strikethrough,
+            intense:       with.intense || self.intense,
         }
     }
 }
@@ -124,95 +229,66 @@ impl From<StyleSpec> for Style {
     }
 }
 
-// TODO: Add more methods for setting Style attrs
+impl From<Color> for Style {
+    /// Create new style with color as foreground
+    fn from(c: Color) -> Self {
+        Self::from_fg(c)
+    }
+}
+
 impl Style {
     /// Create a new style specification with no colors or styles
     pub fn new() -> Self {
-        Style::default()
+        Self::default()
     }
 
     /// Create a new style with fg color defined
     pub fn from_fg(color: Color) -> Self {
-        Style::from(StyleSpec::Fg(color))
+        Self::from(StyleSpec::Fg(color))
     }
 
     /// Set fg color
-    pub fn set_fg(&mut self, color: Color) -> Self {
-        self.fg = Some(color);
-        *self
-    }
-
-    /// Set fg to None
-    pub fn unset_fg(&mut self) -> Self {
-        self.fg = None;
+    pub fn fg(&mut self, color: Option<Color>) -> Self {
+        self.fg = color;
         *self
     }
 
     /// Create a new style with bg color defined
     pub fn from_bg(color: Color) -> Self {
-        Style::from(StyleSpec::Bg(color))
+        StyleSpec::Bg(color).into()
     }
 
     /// Set bg color
-    pub fn set_bg(&mut self, color: Color) -> Self {
-        self.bg = Some(color);
-        *self
-    }
-
-    /// Set bg to None
-    pub fn unset_bg(&mut self) -> Self {
-        self.bg = None;
+    pub fn bg(&mut self, color: Option<Color>) -> Self {
+        self.bg = color;
         *self
     }
 
     /// Set intense
-    pub fn set_intense(&mut self) -> Self {
-        self.intense = true;
-        *self
-    }
-
-    /// Unset intense
-    pub fn unset_intense(&mut self) -> Self {
-        self.intense = false;
+    pub fn intense(&mut self, intense: bool) -> Self {
+        self.intense = intense;
         *self
     }
 
     /// Set italic
-    pub fn set_italic(&mut self) -> Self {
-        self.italic = true;
-        *self
-    }
-
-    /// Unset italic
-    pub fn unset_italic(&mut self) -> Self {
-        self.italic = false;
+    pub fn italic(&mut self, italic: bool) -> Self {
+        self.italic = italic;
         *self
     }
 
     /// Set underline
-    pub fn set_underline(&mut self) -> Self {
-        self.underline = true;
-        *self
-    }
-
-    /// Unset bold
-    pub fn unset_underline(&mut self) -> Self {
-        self.underline = false;
+    pub fn underline(&mut self, underline: bool) -> Self {
+        self.underline = underline;
         *self
     }
 
     /// Set bold
-    pub fn set_bold(&mut self) -> Self {
-        self.bold = true;
+    pub fn bold(&mut self, bold: bool) -> Self {
+        self.bold = bold;
         *self
     }
 
-    /// Unset bold
-    pub fn unset_bold(&mut self) -> Self {
-        self.bold = false;
-        *self
-    }
-
+    // TODO: add methods for rest of attributes
     /// Add `StyleSpec` to `Style`
     pub fn add_spec(&'_ mut self, style: StyleSpec) -> &'_ mut Self {
         match style {
@@ -273,15 +349,30 @@ impl<W: io::Write> WriteStyle<W> for Style {
         if !env_allows_color() {
             return Ok(());
         }
-        if self != &Default::default() {
+        if self != &Style::default() {
             if self.bold {
                 write!(w, e!("1"))?;
+            }
+            if self.dimmed {
+                write!(w, e!("2"))?;
             }
             if self.italic {
                 write!(w, e!("3"))?;
             }
             if self.underline {
                 write!(w, e!("4"))?;
+            }
+            if self.blink {
+                write!(w, e!("5"))?;
+            }
+            if self.reverse {
+                write!(w, e!("7"))?;
+            }
+            if self.hidden {
+                write!(w, e!("8"))?;
+            }
+            if self.strikethrough {
+                write!(w, e!("9"))?;
             }
             if let Some(fg) = self.fg {
                 if self.intense {
@@ -294,7 +385,7 @@ impl<W: io::Write> WriteStyle<W> for Style {
                         Color::Magenta => write!(w, e!("38", "5", "13"))?,
                         Color::Cyan => write!(w, e!("38", "5", "14"))?,
                         Color::White => write!(w, e!("38", "5", "15"))?,
-                        Color::Ansi256(n) => write!(w, e!("38", "5", "{}"), n)?,
+                        Color::Fixed(n) => write!(w, e!("38", "5", "{}"), n)?,
                         Color::Rgb(r, g, b) => write!(w, e!("38", "2", "{};{};{}"), r, g, b)?,
                         Color::__Nonexhaustive => unreachable!(),
                     }
@@ -308,7 +399,7 @@ impl<W: io::Write> WriteStyle<W> for Style {
                         Color::Magenta => write!(w, e!("35"))?,
                         Color::Cyan => write!(w, e!("36"))?,
                         Color::White => write!(w, e!("37"))?,
-                        Color::Ansi256(n) => write!(w, e!("38", "5", "{}"), n)?,
+                        Color::Fixed(n) => write!(w, e!("38", "5", "{}"), n)?,
                         Color::Rgb(r, g, b) => write!(w, e!("38", "2", "{};{};{}"), r, g, b)?,
                         Color::__Nonexhaustive => unreachable!(),
                     }
@@ -325,7 +416,7 @@ impl<W: io::Write> WriteStyle<W> for Style {
                         Color::Magenta => write!(w, e!("48", "5", "13"))?,
                         Color::Cyan => write!(w, e!("48", "5", "14"))?,
                         Color::White => write!(w, e!("48", "5", "15"))?,
-                        Color::Ansi256(n) => write!(w, e!("48", "5", "{}"), n)?,
+                        Color::Fixed(n) => write!(w, e!("48", "5", "{}"), n)?,
                         Color::Rgb(r, g, b) => write!(w, e!("48", "2", "{};{};{}"), r, g, b)?,
                         Color::__Nonexhaustive => unreachable!(),
                     }
@@ -339,7 +430,7 @@ impl<W: io::Write> WriteStyle<W> for Style {
                         Color::Magenta => write!(w, e!("45"))?,
                         Color::Cyan => write!(w, e!("46"))?,
                         Color::White => write!(w, e!("47"))?,
-                        Color::Ansi256(n) => write!(w, e!("48", "5", "{}"), n)?,
+                        Color::Fixed(n) => write!(w, e!("48", "5", "{}"), n)?,
                         Color::Rgb(r, g, b) => write!(w, e!("48", "2", "{};{};{}"), r, g, b)?,
                         Color::__Nonexhaustive => unreachable!(),
                     }
@@ -414,12 +505,17 @@ impl Difference {
         }
 
         Difference::Add(Style {
-            fg:        if next.fg != prev.fg { next.fg } else { None },
-            bg:        if next.bg != prev.bg { next.bg } else { None },
-            bold:      !prev.bold && next.bold,
-            italic:    !prev.italic && next.italic,
-            underline: !prev.underline && next.underline,
-            intense:   !prev.intense && next.intense,
+            fg:            if next.fg != prev.fg { next.fg } else { None },
+            bg:            if next.bg != prev.bg { next.bg } else { None },
+            bold:          !prev.bold && next.bold,
+            dimmed:        !prev.dimmed && next.dimmed,
+            italic:        !prev.italic && next.italic,
+            underline:     !prev.underline && next.underline,
+            blink:         !prev.blink && next.blink,
+            reverse:       !prev.reverse && next.reverse,
+            hidden:        !prev.hidden && next.hidden,
+            strikethrough: !prev.strikethrough && next.strikethrough,
+            intense:       !prev.intense && next.intense,
         })
     }
 }
@@ -428,15 +524,17 @@ impl Difference {
 mod tests {
     use super::*;
     use std::io::Write;
+    use Color::*;
     type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
+    // TODO: add macro to define test functions or at least the buffer/write part
 
     #[test]
     fn test_ansi_write_256() -> Result {
         let mut buf = vec![];
-        let style = Style::new().set_fg(Color::Ansi256(184));
+        let style = Fixed(184).normal();
         style.write_to(&mut buf)?;
         write!(buf, "Test")?;
-        Style::new().add_spec(StyleSpec::Reset).write_to(&mut buf)?;
+        Style::new().write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[38;5;184mTest\x1b[0m");
         Ok(())
     }
@@ -444,7 +542,7 @@ mod tests {
     #[test]
     fn test_intense() -> Result {
         let mut buf = vec![];
-        let style = Style::from_fg(Color::Cyan).set_intense();
+        let style = Cyan.intense();
         style.write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[38;5;14m");
         Ok(())
@@ -453,7 +551,7 @@ mod tests {
     #[test]
     fn test_init_with_color() -> Result {
         let mut buf = vec![];
-        let style = Style::from_fg(Color::Red);
+        let style = Red.normal();
         style.write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[31m");
         Ok(())
@@ -462,8 +560,8 @@ mod tests {
     #[test]
     fn remove_fg() -> Result {
         let mut buf = vec![];
-        let mut style = Style::from_fg(Color::Blue);
-        style.remove(StyleSpec::Fg(Color::Blue));
+        let mut style = Blue.normal();
+        style.remove(StyleSpec::Fg(Blue));
         style.write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[0m");
         Ok(())
@@ -472,28 +570,17 @@ mod tests {
     #[test]
     fn unset_bg() -> Result {
         let mut buf = vec![];
-        let mut style = Style::from_bg(Color::Blue);
-        style.unset_bg();
+        let mut style = Style::from_bg(Blue);
+        style.bg(None);
         style.write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[0m");
         Ok(())
     }
 
     #[test]
-    fn no_color() -> Result {
-        let term = env::var("TERM")?;
-        env::set_var("TERM", "dumb");
-        let mut buf = vec![];
-        Style::from_bg(Color::Red).write_to(&mut buf)?;
-        env::set_var("TERM", term);
-        assert_eq!(buf, b"");
-        Ok(())
-    }
-
-    #[test]
     fn test_rgb() -> Result {
         let mut buf = vec![];
-        let style: Style = StyleSpec::Fg(Color::Rgb(254, 253, 255)).into();
+        let style: Style = Rgb(254, 253, 255).normal();
         style.write_to(&mut buf)?;
         assert_eq!(buf, b"\x1b[38;2;254;253;255m");
         Ok(())
@@ -501,55 +588,73 @@ mod tests {
 
     #[test]
     fn test_bold() -> Result {
-        use std::str;
         let mut buf = vec![];
-        Style::from_bg(Color::White).set_bold().write_to(&mut buf)?;
-        assert_eq!(str::from_utf8(&buf)?, "\x1b[1m\x1b[47m");
+        Style::from_bg(Color::White).bold(true).write_to(&mut buf)?;
+        assert_eq!(&buf, b"\x1b[1m\x1b[47m");
         Ok(())
     }
 
     #[test]
     fn stylespec_into_style() {
-        let ss = StyleSpec::Fg(Color::Red);
+        let ss = StyleSpec::Fg(Red);
         let style = Style {
-            fg: Some(Color::Red),
-            ..Default::default()
+            fg: Some(Red),
+            ..Style::default()
         };
         assert_eq!(style, ss.into());
     }
 
     #[test]
     fn style_from_stylespec() {
-        let ss = StyleSpec::Fg(Color::Red);
+        let ss = StyleSpec::Fg(Red);
         let style = Style {
-            fg: Some(Color::Red),
-            ..Default::default()
+            fg: Some(Red),
+            ..Style::default()
         };
         assert_eq!(style, Style::from(ss));
     }
 
     #[test]
+    fn style_from_color() {
+        let style = Style {
+            fg: Some(Green),
+            ..Style::default()
+        };
+        assert_eq!(style, Green.into());
+    }
+
+    #[test]
     fn add_styles() {
-        let s1 = Style::from_bg(Color::Red);
-        let s2 = Style::from_fg(Color::Blue);
+        let s1 = Style::from_bg(Red);
+        let s2 = Style::from_fg(Blue);
         let added = s1 + s2;
         let res = Style {
-            fg: Some(Color::Blue),
-            bg: Some(Color::Red),
-            ..Default::default()
+            fg: Some(Blue),
+            bg: Some(Red),
+            ..Style::default()
         };
         assert_eq!(added, res);
     }
 
     #[test]
     fn add_assign_styles() {
-        let s1 = Style::from_bg(Color::Red);
-        let s2 = Style::from_fg(Color::Blue);
+        let s1 = Style::from_bg(Red);
+        let s2 = Style::from_fg(Blue);
         let res = Style {
-            fg: Some(Color::Blue),
-            bg: Some(Color::Red),
-            ..Default::default()
+            fg: Some(Blue),
+            bg: Some(Red),
+            ..Style::default()
         };
         assert_eq!(s1 + s2, res);
+    }
+
+    #[test]
+    fn color_on_color() {
+        let style = Style {
+            fg: Some(Cyan),
+            bg: Some(Red),
+            ..Style::default()
+        };
+        assert_eq!(style, Cyan.on(Red));
     }
 }
