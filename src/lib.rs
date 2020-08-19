@@ -523,138 +523,78 @@ impl Difference {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
+    use std::{io::Write, str};
     use Color::*;
-    type Result<T = ()> = std::result::Result<T, Box<dyn std::error::Error>>;
-    // TODO: add macro to define test functions or at least the buffer/write part
 
-    #[test]
-    fn test_ansi_write_256() -> Result {
-        let mut buf = vec![];
-        let style = Fixed(184).normal();
-        style.write_to(&mut buf)?;
-        write!(buf, "Test")?;
-        Style::new().write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[38;5;184mTest\x1b[0m");
-        Ok(())
+    macro_rules! test {
+        ($name: ident, $style: expr, $input: expr => $result: expr) => {
+            #[test]
+            fn $name() {
+                let mut buf = vec![];
+                $style.write_to(&mut buf).unwrap();
+                write!(buf, $input).unwrap();
+                assert_eq!(str::from_utf8(&buf).unwrap(), $result);
+            }
+        };
+        ($name: ident, $style: expr => $result: expr) => {
+            #[test]
+            fn $name() {
+                let mut buf = vec![];
+                $style.write_to(&mut buf).unwrap();
+                assert_eq!(str::from_utf8(&buf).unwrap(), $result);
+            }
+        };
+        ($name: ident, $style: expr, $result: expr) => {
+            #[test]
+            fn $name() {
+                assert_eq!($style, $result);
+            }
+        };
     }
 
-    #[test]
-    fn test_intense() -> Result {
-        let mut buf = vec![];
-        let style = Cyan.intense();
-        style.write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[38;5;14m");
-        Ok(())
-    }
-
-    #[test]
-    fn test_init_with_color() -> Result {
-        let mut buf = vec![];
-        let style = Red.normal();
-        style.write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[31m");
-        Ok(())
-    }
-
-    #[test]
-    fn remove_fg() -> Result {
-        let mut buf = vec![];
-        let mut style = Blue.normal();
-        style.remove(StyleSpec::Fg(Blue));
-        style.write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[0m");
-        Ok(())
-    }
-
-    #[test]
-    fn unset_bg() -> Result {
-        let mut buf = vec![];
-        let mut style = Style::from_bg(Blue);
-        style.bg(None);
-        style.write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[0m");
-        Ok(())
-    }
-
-    #[test]
-    fn test_rgb() -> Result {
-        let mut buf = vec![];
-        let style: Style = Rgb(254, 253, 255).normal();
-        style.write_to(&mut buf)?;
-        assert_eq!(buf, b"\x1b[38;2;254;253;255m");
-        Ok(())
-    }
-
-    #[test]
-    fn test_bold() -> Result {
-        let mut buf = vec![];
-        Style::from_bg(Color::White).bold(true).write_to(&mut buf)?;
-        assert_eq!(&buf, b"\x1b[1m\x1b[47m");
-        Ok(())
-    }
-
-    #[test]
-    fn stylespec_into_style() {
-        let ss = StyleSpec::Fg(Red);
-        let style = Style {
+    test!(ansi_write_256, Style::default(), "text/plain" => "\x1b[0mtext/plain");
+    test!(intense, Cyan.intense() => "\x1b[38;5;14m");
+    test!(
+        remove_fg,
+        Blue.normal().remove(StyleSpec::Fg(Blue)),
+        &Style::default()
+    );
+    test!(unset_bg, Style::from_bg(Blue).bg(None), Style::default());
+    test!(rgb, Rgb(254, 253, 255).normal() => "\x1b[38;2;254;253;255m");
+    test!(bold, White.bold() => "\x1b[1m\x1b[37m");
+    test!(
+        stylespec_into_style,
+        Into::<Style>::into(StyleSpec::Fg(Red)),
+        Style {
             fg: Some(Red),
             ..Style::default()
-        };
-        assert_eq!(style, ss.into());
-    }
-
-    #[test]
-    fn style_from_stylespec() {
-        let ss = StyleSpec::Fg(Red);
-        let style = Style {
+        }
+    );
+    test!(
+        style_from_stylespec,
+        Style::from(StyleSpec::Fg(Red)),
+        Style {
             fg: Some(Red),
             ..Style::default()
-        };
-        assert_eq!(style, Style::from(ss));
-    }
-
-    #[test]
-    fn style_from_color() {
-        let style = Style {
-            fg: Some(Green),
-            ..Style::default()
-        };
-        assert_eq!(style, Green.into());
-    }
-
-    #[test]
-    fn add_styles() {
-        let s1 = Style::from_bg(Red);
-        let s2 = Style::from_fg(Blue);
-        let added = s1 + s2;
-        let res = Style {
+        }
+    );
+    test!(style_from_color, Style::from(Green), Green.normal());
+    test!(
+        add_styles,
+        Style::from(Blue) + Style::from_bg(Red),
+        Style {
             fg: Some(Blue),
             bg: Some(Red),
             ..Style::default()
-        };
-        assert_eq!(added, res);
-    }
-
-    #[test]
-    fn add_assign_styles() {
-        let s1 = Style::from_bg(Red);
-        let s2 = Style::from_fg(Blue);
-        let res = Style {
-            fg: Some(Blue),
-            bg: Some(Red),
-            ..Style::default()
-        };
-        assert_eq!(s1 + s2, res);
-    }
-
-    #[test]
-    fn color_on_color() {
-        let style = Style {
+        }
+    );
+    test!(
+        color_on_color,
+        Cyan.on(Red),
+        Style {
             fg: Some(Cyan),
             bg: Some(Red),
             ..Style::default()
-        };
-        assert_eq!(style, Cyan.on(Red));
-    }
+        }
+    );
 }
