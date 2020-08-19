@@ -7,7 +7,9 @@
 //! attempt support for older versions of Windows. Windows 10 can handle ANSI escape sequences,
 //! which is all this crate is concerned with.
 use std::{
-    env, io,
+    env,
+    fmt::{self, Display},
+    io,
     iter::{Extend, FromIterator, IntoIterator},
     ops::{Add, AddAssign},
 };
@@ -140,6 +142,14 @@ impl Color {
             ..Style::default()
         }
     }
+
+    /// Paint the given text with this color. Equivalent to `Color.normal().paint()`
+    pub fn paint<S>(self, input: S) -> impl Display
+    where
+        S: AsRef<str>,
+    {
+        format!("{}{}", self.normal(), input.as_ref())
+    }
 }
 
 /// Elements that can be added to define a complete `Style`
@@ -232,123 +242,13 @@ impl From<StyleSpec> for Style {
 impl From<Color> for Style {
     /// Create new style with color as foreground
     fn from(c: Color) -> Self {
-        Self::from_fg(c)
+        c.normal()
     }
 }
 
-impl Style {
-    /// Create a new style specification with no colors or styles
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Create a new style with fg color defined
-    pub fn from_fg(color: Color) -> Self {
-        Self::from(StyleSpec::Fg(color))
-    }
-
-    /// Set fg color
-    pub fn fg(&mut self, color: Option<Color>) -> Self {
-        self.fg = color;
-        *self
-    }
-
-    /// Create a new style with bg color defined
-    pub fn from_bg(color: Color) -> Self {
-        StyleSpec::Bg(color).into()
-    }
-
-    /// Set bg color
-    pub fn bg(&mut self, color: Option<Color>) -> Self {
-        self.bg = color;
-        *self
-    }
-
-    /// Set intense
-    pub fn intense(&mut self, intense: bool) -> Self {
-        self.intense = intense;
-        *self
-    }
-
-    /// Set italic
-    pub fn italic(&mut self, italic: bool) -> Self {
-        self.italic = italic;
-        *self
-    }
-
-    /// Set underline
-    pub fn underline(&mut self, underline: bool) -> Self {
-        self.underline = underline;
-        *self
-    }
-
-    /// Set bold
-    pub fn bold(&mut self, bold: bool) -> Self {
-        self.bold = bold;
-        *self
-    }
-
-    // TODO: add methods for rest of attributes
-    /// Add `StyleSpec` to `Style`
-    pub fn add_spec(&'_ mut self, style: StyleSpec) -> &'_ mut Self {
-        match style {
-            StyleSpec::Fg(color) => self.fg = Some(color),
-            StyleSpec::Bg(color) => self.bg = Some(color),
-            StyleSpec::Bold => self.bold = true,
-            StyleSpec::Italic => self.italic = true,
-            StyleSpec::Intense => self.intense = true,
-            StyleSpec::Underline => self.underline = true,
-            StyleSpec::Reset => *self = Default::default(),
-            _ => (),
-        }
-        self
-    }
-
-    /// Remove `StyleSpec` from `Style`
-    pub fn remove(&'_ mut self, style: StyleSpec) -> &'_ mut Self {
-        match style {
-            StyleSpec::Fg(_) => self.fg = None,
-            StyleSpec::Bg(_) => self.bg = None,
-            StyleSpec::Bold => self.bold = false,
-            StyleSpec::Italic => self.italic = false,
-            StyleSpec::Intense => self.intense = false,
-            StyleSpec::Underline => self.underline = false,
-            _ => (),
-        }
-        self
-    }
-}
-
-/// Check environment for signs we shouldn't use color
-fn env_allows_color() -> bool {
-    // Don't allow color if TERM isn't set or == "dumb"
-    match env::var_os("TERM") {
-        None => return false,
-        Some(v) => {
-            if v == "dumb" {
-                return false;
-            }
-        }
-    }
-    // Check if NO_COLOR is set
-    if env::var_os("NO_COLOR").is_some() {
-        return false;
-    }
-    true
-}
-
-/// Write `Style` to anything satisfying the `io::Write` trait
-pub trait WriteStyle<W: io::Write> {
-    fn write_to(&self, w: &mut W) -> io::Result<()>;
-    fn write_difference(&self, w: &mut W, prev: &Self) -> io::Result<()>;
-}
-
-impl<W: io::Write> WriteStyle<W> for Style {
-    /// Write style to io object.
-    fn write_to(&self, w: &mut W) -> io::Result<()> {
-        if !env_allows_color() {
-            return Ok(());
-        }
+impl Display for Style {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let w: &mut dyn fmt::Write = f;
         if self != &Style::default() {
             if self.bold {
                 write!(w, e!("1"))?;
@@ -441,9 +341,138 @@ impl<W: io::Write> WriteStyle<W> for Style {
         }
         Ok(())
     }
+}
+
+impl Style {
+    /// Create a new style specification with no colors or styles
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Create a new style with fg color defined
+    pub fn from_fg(color: Color) -> Self {
+        Self {
+            fg: Some(color),
+            ..Self::default()
+        }
+    }
+
+    /// Set fg color
+    pub fn fg(&mut self, color: Option<Color>) -> Self {
+        self.fg = color;
+        *self
+    }
+
+    /// Create a new style with bg color defined
+    pub fn from_bg(color: Color) -> Self {
+        Self {
+            bg: Some(color),
+            ..Self::default()
+        }
+    }
+
+    /// Set bg color
+    pub fn bg(&mut self, color: Option<Color>) -> Self {
+        self.bg = color;
+        *self
+    }
+
+    /// Set intense
+    pub fn intense(&mut self, intense: bool) -> Self {
+        self.intense = intense;
+        *self
+    }
+
+    /// Set italic
+    pub fn italic(&mut self, italic: bool) -> Self {
+        self.italic = italic;
+        *self
+    }
+
+    /// Set underline
+    pub fn underline(&mut self, underline: bool) -> Self {
+        self.underline = underline;
+        *self
+    }
+
+    /// Set bold
+    pub fn bold(&mut self, bold: bool) -> Self {
+        self.bold = bold;
+        *self
+    }
+
+    // TODO: add methods for rest of attributes
+    /// Add `StyleSpec` to `Style`
+    pub fn add_spec(&'_ mut self, style: StyleSpec) -> &'_ mut Self {
+        match style {
+            StyleSpec::Fg(color) => self.fg = Some(color),
+            StyleSpec::Bg(color) => self.bg = Some(color),
+            StyleSpec::Bold => self.bold = true,
+            StyleSpec::Italic => self.italic = true,
+            StyleSpec::Intense => self.intense = true,
+            StyleSpec::Underline => self.underline = true,
+            StyleSpec::Reset => *self = Default::default(),
+            _ => (),
+        }
+        self
+    }
+
+    /// Remove `StyleSpec` from `Style`
+    pub fn remove(&'_ mut self, style: StyleSpec) -> &'_ mut Self {
+        match style {
+            StyleSpec::Fg(_) => self.fg = None,
+            StyleSpec::Bg(_) => self.bg = None,
+            StyleSpec::Bold => self.bold = false,
+            StyleSpec::Italic => self.italic = false,
+            StyleSpec::Intense => self.intense = false,
+            StyleSpec::Underline => self.underline = false,
+            _ => (),
+        }
+        self
+    }
+
+    /// Paint the given text with this style
+    pub fn paint<S>(self, input: S) -> impl Display
+    where
+        S: AsRef<str>,
+    {
+        format!("{}{}", self, input.as_ref())
+    }
+}
+
+/// Check environment for signs we shouldn't use color
+pub fn env_allows_color() -> bool {
+    // Don't allow color if TERM isn't set or == "dumb"
+    match env::var_os("TERM") {
+        None => return false,
+        Some(v) => {
+            if v == "dumb" {
+                return false;
+            }
+        }
+    }
+    // Check if NO_COLOR is set
+    if env::var_os("NO_COLOR").is_some() {
+        return false;
+    }
+    true
+}
+
+impl Style {
+    /// Write style to io object.
+    pub fn write_to<W: io::Write + ?Sized>(&self, w: &mut W) -> io::Result<()> {
+        if !env_allows_color() {
+            return Ok(());
+        }
+        write!(w, "{}", self)
+    }
 
     /// Write only difference from prev style
-    fn write_difference(&self, w: &mut W, prev: &Style) -> io::Result<()> {
+    pub fn write_difference<W: io::Write + ?Sized>(
+        &self,
+        w: &mut W,
+        prev: &Style,
+    ) -> io::Result<()> {
         if !env_allows_color() {
             return Ok(());
         }
@@ -530,7 +559,7 @@ mod tests {
         ($name: ident, $style: expr, $input: expr => $result: expr) => {
             #[test]
             fn $name() {
-                let mut buf = vec![];
+                let mut buf: Vec<u8> = vec![];
                 $style.write_to(&mut buf).unwrap();
                 write!(buf, $input).unwrap();
                 assert_eq!(str::from_utf8(&buf).unwrap(), $result);
@@ -539,9 +568,7 @@ mod tests {
         ($name: ident, $style: expr => $result: expr) => {
             #[test]
             fn $name() {
-                let mut buf = vec![];
-                $style.write_to(&mut buf).unwrap();
-                assert_eq!(str::from_utf8(&buf).unwrap(), $result);
+                assert_eq!($style.to_string(), $result.to_string());
             }
         };
         ($name: ident, $style: expr, $result: expr) => {

@@ -8,5 +8,3 @@ edition = "2018"
 [lib]
 name = "writecolor"
 bench = false
-
-# [dependencies]
