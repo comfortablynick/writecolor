@@ -12,6 +12,7 @@ use std::{
     io,
     iter::{Extend, FromIterator, IntoIterator},
     ops::{Add, AddAssign},
+    sync::Once,
 };
 
 /// Helper to write escape sequences
@@ -148,7 +149,7 @@ impl Color {
     where
         S: AsRef<str>,
     {
-        format!("{}{}", self.normal(), input.as_ref())
+        format!("{}{}{}", self.normal(), input.as_ref(), Style::reset())
     }
 }
 
@@ -246,9 +247,15 @@ impl From<Color> for Style {
     }
 }
 
+static mut ALLOWS_COLOR: bool = true;
+static ALLOWS_COLOR_INIT: Once = Once::new();
+
 impl Display for Style {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let w: &mut dyn fmt::Write = f;
+        if !env_allows_color() {
+            return write!(f, "");
+        }
         if self != &Style::default() {
             if self.bold {
                 write!(w, e!("1"))?;
@@ -431,39 +438,47 @@ impl Style {
         self
     }
 
+    /// Reset style
+    pub fn reset() -> Self {
+        Style::from(StyleSpec::Reset)
+    }
+
     /// Paint the given text with this style
     pub fn paint<S>(self, input: S) -> impl Display
     where
         S: AsRef<str>,
     {
-        format!("{}{}", self, input.as_ref())
+        format!("{}{}{}", self, input.as_ref(), Self::reset())
     }
 }
 
-/// Check environment for signs we shouldn't use color
+/// Check environment for signs we shouldn't use color. The first time
+/// this is called, it will check env vars to set global value.
 pub fn env_allows_color() -> bool {
-    // Don't allow color if TERM isn't set or == "dumb"
-    match env::var_os("TERM") {
-        None => return false,
-        Some(v) => {
-            if v == "dumb" {
-                return false;
+    unsafe {
+        ALLOWS_COLOR_INIT.call_once(|| {
+            // Don't allow color if TERM isn't set or == "dumb"
+            match env::var_os("TERM") {
+                None => ALLOWS_COLOR = false,
+                Some(v) => {
+                    if v == "dumb" {
+                        ALLOWS_COLOR = false;
+                    }
+                }
             }
-        }
+            // Check if NO_COLOR is set
+            if env::var_os("NO_COLOR").is_some() {
+                ALLOWS_COLOR = false;
+            }
+            ALLOWS_COLOR = true;
+        });
+        ALLOWS_COLOR
     }
-    // Check if NO_COLOR is set
-    if env::var_os("NO_COLOR").is_some() {
-        return false;
-    }
-    true
 }
 
 impl Style {
     /// Write style to io object.
     pub fn write_to<W: io::Write + ?Sized>(&self, w: &mut W) -> io::Result<()> {
-        if !env_allows_color() {
-            return Ok(());
-        }
         write!(w, "{}", self)
     }
 
@@ -473,13 +488,10 @@ impl Style {
         w: &mut W,
         prev: &Style,
     ) -> io::Result<()> {
-        if !env_allows_color() {
-            return Ok(());
-        }
         match Difference::between(&prev, &self) {
             Difference::Add(style) => style.write_to(w)?,
             Difference::Reset => {
-                write!(w, e!())?;
+                Self::reset().write_to(w)?;
                 self.write_to(w)?;
             }
             Difference::None => (),
